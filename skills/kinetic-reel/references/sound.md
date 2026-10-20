@@ -36,5 +36,5 @@ Never use the same cue twice in a row. Keep `impact()` (with its noise tail) for
 - `t0 * SR` isn't an integer, so the first sample's local time can be −1e−16, and `Math.pow(negative, 2.2)` is NaN,
   which silences the whole mix after normalization. `put()` clamps `tt >= 0`. Keep it.
 - The state-variable filter in `noise()` explodes near `f = 1`: `f` is clamped to .85 and `q` to ≥ .45. Keep it.
-- You can't listen. Verify with `ffmpeg -lavfi showspectrumpic`, per-section RMS, and a count of the calls you
+- If audio listening is unavailable, disclose that limitation. Verify with `ffmpeg -lavfi showspectrumpic`, per-section RMS, and a count of the calls you
   meant to remove (e.g. `grep -c "whoosh("`). Tell the user you couldn't hear it.

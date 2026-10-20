@@ -1,6 +1,6 @@
 ---
 name: kinetic-reel
-description: Make kinetic-typography motion reels (MP4) in code: showreels, portfolio or work reels, product promos, intro films, "motion design"-style videos with bold condensed type, HUD micro-type, black/cream/lime palette, three.js generative layers (particle terrain, liquid marble, chrome knot, particle clouds), shape-continuity transitions and a synthesized, beat-locked score. Canvas 2D + WebGL rendered frame by frame in headless Chrome, encoded with ffmpeg. Use when the user asks for a reel, showreel, motion-graphics / kinetic-type video, a "Work Reel" in this style, or to extend/re-cut the Work Reel ’26.
+description: Create kinetic typography, motion graphics, portfolio reels, product promos and animated title sequences using Canvas 2D, three.js, Chromium and FFmpeg. Use for videos led by moving type, interface graphics and beat-synchronized transitions.
 ---
 
 # Kinetic reel
@@ -17,8 +17,12 @@ Chrome to render contact sheets, strips and stills for review, or every frame in
 ## Workflow
 
 ### 0. Scaffold
+
+Read [references/codex.md](references/codex.md) for Codex tool mapping, dependency discovery and Windows commands.
+Resolve `SKILL_DIR` as the directory containing this SKILL.md; do not assume a Claude installation path.
+
 ```bash
-bash ~/.claude/skills/kinetic-reel/scripts/new_project.sh <project-dir>
+node "<SKILL_DIR>/scripts/new_project.mjs" "<project-dir>"
 ```
 Then read [references/style-guide.md](references/style-guide.md) (the look, the motion vocabulary, the transition
 catalogue, layout rules) and [references/sound.md](references/sound.md) in full before designing. Skim
@@ -49,18 +53,19 @@ node render.mjs --sheet=1,4,7,10,13,15.5 --cols=3 --w=640 --out=out/check/sheet.
 node render.mjs --stills=10.4 --out=out/stills                                          # full-res detail
 ffmpeg -ss 16.0 -t .6 -i out/reel.mp4 -vf "fps=10,scale=320:-1,tile=6x1" out/check/tr.jpg   # a transition, from the encode
 ```
-Open every image with Read. Check for collisions (labels over lines, stats over stats, text into HUD bands), empty
+Open every image with `view_image`. Check for collisions (labels over lines, stats over stats, text into HUD bands), empty
 frames on a cut, legibility at 1600 px wide, and that each transition *starts on something* and lands cleanly.
 Budget: a sheet per chapter, a full-res still per dense shot, a strip per transition type.
 
 ### 4. Score, render, encode
 ```bash
-node music/score.mjs && ffmpeg -y -i music/score.wav -af "highpass=f=30,equalizer=f=250:t=q:w=1:g=-2,loudnorm=I=-14:TP=-1.2:LRA=8" -c:a aac -b:a 192k assets/score.m4a
+node music/score.mjs
+ffmpeg -y -i music/score.wav -af "highpass=f=30,equalizer=f=250:t=q:w=1:g=-2,loudnorm=I=-14:TP=-1.2:LRA=8" -c:a aac -b:a 192k assets/score.m4a
 node render.mjs --frames --workers=4                                    # ~8–40 ms/frame on a Mac GPU: seconds, not minutes
 node render.mjs --encode --audio=assets/score.m4a --out=out/reel.mp4 --fps=30
 # web copy: ffmpeg -i out/reel.mp4 -vf scale=1600:900:flags=lanczos -c:v libx264 -preset slow -crf 23 -c:a aac -b:a 128k -movflags +faststart out/reel-web.mp4
 ```
-You can't hear the score: check it with `showspectrumpic` and per-section RMS, and say so when you report. Audio-only
+If audio listening is unavailable, check the score with `showspectrumpic` and per-section RMS; disclose that it was not auditioned. Audio-only
 changes don't need a re-render: remux (`-map 0:v -map 1:a -c:v copy`).
 
 ## The rules that matter most

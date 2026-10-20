@@ -1,3 +1,5 @@
+> Codex adaptation: see the [repository setup](../../README.md) and [runtime notes](references/codex.md). The upstream style guide and example provenance below are retained.
+
 <div align="center">
 
 # painted-animation

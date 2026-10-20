@@ -1,6 +1,6 @@
 ---
 name: painted-animation
-description: Make hand-painted watercolour-and-ink cartoon videos (MP4) with code — p5.js + p5.brush rendered frame by frame in headless Chrome, encoded with ffmpeg — starring Clawd or any character. Use when the user asks to make an animation, animated short, cartoon, music video, lyric video, animated GIF/loop or "a video of Clawd…", or mentions the PDoomVideo / ClaudeAnimationBase approach. Covers storyboarding, the engine API, the render-and-look review loop, music/lyric sync and splitting long videos across subagents.
+description: Create hand-painted watercolour and ink animations, Clawd cartoons, music videos and synchronized lyric videos using p5.js, p5.brush, Chromium and FFmpeg. Use for code-rendered cartoon shorts or painted lyric MVs; includes storyboarding, scene animation and visual review.
 ---
 
 # Painted animation
@@ -13,11 +13,15 @@ A method for making short cartoons entirely in code, distilled from [JohnHeibel/
 
 ### 0. Scaffold
 
+Read [references/codex.md](references/codex.md) for Codex tool mapping, dependency discovery and Windows commands.
+Resolve `SKILL_DIR` as the directory containing this SKILL.md; do not assume a Claude installation path.
+
+
 ```bash
-bash ~/.claude/skills/painted-animation/scripts/new_project.sh <project-dir>        # add --keep-demo to keep the example scene hooked up
+node "<SKILL_DIR>/scripts/new_project.mjs" "<project-dir>"        # add --keep-demo to keep the example scene hooked up
 ```
 
-This copies the template, unhooks the demo scene, runs `npm install` and checks node / ffmpeg / Chrome. Then **read `<project-dir>/ANIMATION_GUIDE.md` in full** before designing anything: it holds the rules, the animation principles and the complete engine / Clawd API. Look at `docs/emotions.jpg` and `docs/views.jpg` (the model sheets) with the Read tool.
+This copies the template, unhooks the demo scene, installs npm dependencies and checks node / ffmpeg / Chrome. Then **read `<project-dir>/ANIMATION_GUIDE.md` in full** before designing anything: it holds the rules, the animation principles and the complete engine / Clawd API. Look at `docs/emotions.jpg` and `docs/views.jpg` (the model sheets) with `view_image` (or the available local image viewer).
 
 For a music video or anything longer than ~20 s, also read [references/music-video.md](references/music-video.md). For a lyric video, ask for the song file and an LRC first, and measure the tempo with `scripts/beat_grid.py`: lines are usually faster than you'd guess.
 
@@ -25,7 +29,7 @@ For a music video or anything longer than ~20 s, also read [references/music-vid
 
 Write `STORYBOARD.md` in the project (format in the guide: logline, world + palette arc, motif, the character's emotion arc, then shots with **reads** — the timed list of what the viewer must understand). Worked example: [examples/xiaozhen/](examples/xiaozhen/) (a 31 s lyric video: storyboard and full scene code).
 
-Show the storyboard to the user and let them react before building, unless they said to just go ahead.
+Save the storyboard and summarize the creative direction. Continue with the authorized video task; pause for storyboard approval only when the user requests a review checkpoint.
 
 ### 2. Build shot by shot
 
@@ -43,20 +47,21 @@ node render.mjs --strip=2.1:2.6 --out=out/check/strip.jpg                       
 node render.mjs --sheet=2.3 --crop=760,420,500,400 --w=500 --out=out/check/face.jpg   # full-res detail
 ```
 
-Open each image with Read and actually check it against the guide's review list: event clear? character big enough? reads timed so a first-time viewer gets them? anticipation / follow-through, no snaps? feet and held props touching? transitions at every seam? no text, no 3D, no pure black/white, no muddy glows? Fix and look again. Budget: ≥ 1 sheet per shot, a strip per key motion and transition, a crop per story-carrying face.
+Open each image with `view_image` and actually check it against the guide's review list: event clear? character big enough? reads timed so a first-time viewer gets them? anticipation / follow-through, no snaps? feet and held props touching? transitions at every seam? no text, no 3D, no pure black/white, no muddy glows? Fix and look again. Budget: ≥ 1 sheet per shot, a strip per key motion and transition, a crop per story-carrying face.
 
 ### 4. Render the video
 
 ```bash
 node render.mjs --clip --out=out/video.mp4                                   # short videos, one worker
-node render.mjs --frames --workers=4 && node render.mjs --encode --out=out/video.mp4 [--audio=assets/song.mp3]   # long ones, parallel + resumable
+node render.mjs --frames --workers=4
+node render.mjs --encode --out=out/video.mp4 --audio=assets/song.mp3   # long ones, parallel + resumable
 ```
 
-Report the output path, length and ms/frame. Offer `open out/video.mp4`.
+Report the output path, length and ms/frame. Return a clickable absolute file link and, where supported, an inline video preview. Report only verified output properties.
 
 ## The rules that matter most
 
-These are the guide's rules condensed; the guide is authoritative.
+These are defaults for this visual style; preserve the user's requested style, text and characters when they differ.
 
 1. **Handmade medium.** Only `paint()` / `inkLine()` (p5.brush) — never plain p5 `rect`/`ellipse`/`fill`. Flat 2D only: turns go through drawn key views (`turn()`, `spinView()`), never 3D projection. Light via `glow()` (additive), because pigment-mixing makes yellow-over-blue go green.
 2. **No text.** No captions, labels, signs or word bubbles; show it instead. Reactions are painted emotes (`!`, sweat, hearts…). The one exception is karaoke in a lyric video, and at most a few big SFX.

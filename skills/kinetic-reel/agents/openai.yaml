@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kinetic Reel"
+  short_description: "Create kinetic typography and motion graphics videos"
+  default_prompt: "Use $kinetic-reel to create a short video from my brief, render a preview, and deliver the finished MP4."
+policy:
+  allow_implicit_invocation: true

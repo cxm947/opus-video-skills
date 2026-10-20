@@ -1,3 +1,5 @@
+> Codex 适配版：安装与调用请先看[仓库首页](../../README.zh-CN.md)；运行说明见 [Codex notes](references/codex.md)。下文保留上游风格说明与示例来源。
+
 <div align="center">
 
 # kinetic-reel

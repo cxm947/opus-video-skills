@@ -1,6 +1,6 @@
 // render.mjs: renders studio.html in headless Chrome. Length and fps come from the page (PROJECT in src/config.js).
 //
-//   Look at it (open the images with your image viewer / Read tool):
+//   Look at it (open the images with your image viewer / Codex view_image tool):
 //     node render.mjs --sheet=0.5,1,1.5,2 [--cols=4] [--w=480] --out=out/check/a.jpg        contact sheet of chosen times
 //     node render.mjs --strip=2.0:2.5 [--cols=6] [--w=320] --out=out/check/strip.jpg        EVERY frame in a stretch (motion)
 //     node render.mjs --sheet=2.1,2.2 --crop=760,300,400,400 --w=600 --out=out/check/face.jpg full-res crops (details)
@@ -20,23 +20,11 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync, existsSync, statSync, renameSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { homedir } from 'node:os';
+import { parseArgs, findChrome, findFFmpeg, run, completion, writeFrame } from './toolchain.mjs';
 
-const args = Object.fromEntries(process.argv.slice(2).map(a => { const [k, v] = a.replace(/^--/, '').split('='); return [k, v ?? true]; }));
-const CHROMES = [args.chrome, process.env.CHROME_PATH, 'C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser',
-  ...playwrightChromes()];
-// Chromium builds Playwright downloaded (~/.cache/ms-playwright/chromium-NNNN), newest first
-function playwrightChromes() {
-  const dir = `${homedir()}/.cache/ms-playwright`;
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir).filter(n => /^chromium-\d+$/.test(n)).sort((a, b) => b.split('-')[1] - a.split('-')[1])
-    .map(n => `${dir}/${n}/chrome-linux64/chrome`);
-}
-const CHROME = CHROMES.find(p => p && existsSync(p));
-if (!CHROME) { console.error('Chrome not found: pass --chrome=<path> or set CHROME_PATH'); process.exit(1); }
-const fps = +(args.fps || 24), FRAMES_DIR = 'out/frames';
-const run = (cmd, a) => new Promise((ok, bad) => { const p = spawn(cmd, a, { stdio: 'inherit' }); p.on('close', c => c ? bad(new Error(cmd + ' exited ' + c)) : ok()); });
+const args = parseArgs(process.argv.slice(2));
+const FFMPEG = (args.encode || args.clip) ? findFFmpeg(args.ffmpeg) : null;
+const fps = +(args.fps || 24), FRAMES_DIR = args['frames-dir'] || 'out/frames';
 const times = s => String(s).split(',').map(Number);
 const span = s => String(s).split(':').map(Number);
 // comma-separated fields, keeping commas inside parentheses ('PLK.MX(1.38),PLK.WL,500,300'); numbers stay numbers
@@ -44,13 +32,16 @@ const fields = s => { const out = []; let d = 0, cur = ''; for (const ch of Stri
 
 if (args.encode) {
   const out = args.out || 'out/video.mp4', n = readdirSync(FRAMES_DIR).filter(f => f.endsWith('.jpg')).length, audio = args.audio;
+  mkdirSync(dirname(out), { recursive: true });
   console.log(`encoding ${n} frames → ${out}${audio ? ' with ' + audio : ''}`);
-  await run('ffmpeg', ['-y', '-loglevel', 'error', '-stats', '-framerate', String(fps), '-i', `${FRAMES_DIR}/f%05d.jpg`,
+  await run(FFMPEG, ['-y', '-loglevel', 'error', '-stats', '-framerate', String(fps), '-i', `${FRAMES_DIR}/f%05d.jpg`,
     ...(audio ? ['-i', audio, '-map', '0:v', '-map', '1:a', '-c:a', 'aac', '-b:a', '192k', '-shortest'] : []),
     '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out]);
   console.log('wrote ' + out);
   process.exit(0);
 }
+
+const CHROME = findChrome(args.chrome);
 
 // --soft-gl: no GPU on this machine; render WebGL in software (SwiftShader), which Chrome only allows when asked.
 // --gpu-angle=vulkan|gl-egl: headless Linux on an NVIDIA GPU (e.g. a cloud or cluster node); plain --use-gl=angle gets
@@ -74,7 +65,7 @@ async function openPage(tag = '') {
   await page.waitForFunction('window.ready === true', { timeout: 60000 });
   if (args.loop) {
     const ok = await page.evaluate(name => { if (!LOOPS[name]) return false; window.LOOP = LOOPS[name]; return true; }, args.loop);
-    if (!ok) { console.error(`no loop named "${args.loop}"`); process.exit(1); }
+    if (!ok) throw new Error(`no loop named "${args.loop}"`);
   }
   return page;
 }
@@ -85,6 +76,7 @@ const frameOf = async (page, t, type, q) => {
 // the length of whatever is being rendered: a loop's .len, or the video's duration
 const lengthOf = page => page.evaluate(() => window.LOOP ? window.LOOP.len : DUR);
 
+try {
 if (args.sheet || args.strip) {
   const page = await openPage(), out = args.out || 'out/sheet.jpg'; mkdirSync(dirname(out), { recursive: true });
   let ts;
@@ -137,21 +129,28 @@ if (args.sheet || args.strip) {
 } else if (args.clip) {
   const page = await openPage(), len = await lengthOf(page);
   const [a, b] = args.range ? span(args.range) : typeof args.clip === 'string' ? span(args.clip) : [0, len];
-  const audio = args.audio || await page.evaluate(() => PROJECT.audio || '');
+  const audio = args['no-audio'] ? '' : (args.audio || await page.evaluate(() => typeof PROJECT !== 'undefined' ? (PROJECT.audio || '') : ''));
+  if (audio && !existsSync(audio)) throw new Error(`Audio not found: ${audio}. Create it first or use --no-audio for a silent preview.`);
   const out = args.out || 'out/clip.mp4'; mkdirSync(dirname(out), { recursive: true });
-  const ff = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'mjpeg', '-i', '-',
+  const ff = spawn(FFMPEG, ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'mjpeg', '-i', '-',
     ...(audio ? ['-ss', String(a), '-t', String(b - a), '-i', audio, '-map', '0:v', '-map', '1:a', '-c:a', 'aac', '-b:a', '192k', '-shortest'] : []),
     '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out],
-    { stdio: ['pipe', 'inherit', 'inherit'] });
+    { stdio: ['pipe', 'inherit', 'inherit'], windowsHide: true });
+  const encoded = completion(ff);
+  ff.stdin.on('error', () => {}); // writeFrame/encoded propagate errors to the caller.
+  try {
   const n = Math.round((b - a) * fps), start = Date.now();
   for (let i = 0; i < n; i++) {
     const buf = await frameOf(page, a + i / fps, 'image/jpeg', .93);
-    if (!ff.stdin.write(buf)) await new Promise(r => ff.stdin.once('drain', r));
+    await writeFrame(ff, buf);
     if (i % 24 === 0 || i === n - 1) console.log(`frame ${i + 1}/${n}  ${((Date.now() - start) / (i + 1)).toFixed(0)} ms/frame`);
   }
-  ff.stdin.end(); await new Promise(r => ff.on('close', r));
+  ff.stdin.end(); await encoded;
+  } catch (error) { ff.stdin.destroy(); ff.kill(); await encoded.catch(() => {}); throw error; }
   console.log(`wrote ${out}`);
 } else {
   console.log('nothing to do: see the usage notes at the top of render.mjs');
 }
-await browser.close();
+} finally {
+  await browser.close();
+}

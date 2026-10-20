@@ -1,0 +1,6 @@
+interface:
+  display_name: "Painted Animation"
+  short_description: "Create painted cartoons and synchronized lyric MVs"
+  default_prompt: "Use $painted-animation to create a short video from my brief, render a preview, and deliver the finished MP4."
+policy:
+  allow_implicit_invocation: true

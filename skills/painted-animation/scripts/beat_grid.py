@@ -5,13 +5,13 @@ Needs ffmpeg and numpy (python3 -m venv .venv && .venv/bin/pip install numpy). P
 for a ballad feel in PROJECT.bpm), the time of a beat near --from, and for each LRC line its beat index, so you can
 pick a clip start on a bar line and put PROJECT.offset on the grid.
 """
-import re, subprocess, sys
+import os, re, subprocess, sys
 import numpy as np
 
 args = dict(a.lstrip('-').split('=', 1) if '=' in a else (a, True) for a in sys.argv[2:])
 src, t0, t1 = sys.argv[1], float(args.get('from', 0)), float(args.get('to', 0)) or None
 sr, hop, win = 22050, 128, 2048
-cmd = ['ffmpeg', '-v', 'error', '-ss', str(t0)] + (['-t', str(t1 - t0)] if t1 else []) + ['-i', src, '-ac', '1', '-ar', str(sr), '-f', 'f32le', '-']
+cmd = [os.environ.get('FFMPEG_PATH', 'ffmpeg'), '-v', 'error', '-ss', str(t0)] + (['-t', str(t1 - t0)] if t1 else []) + ['-i', src, '-ac', '1', '-ar', str(sr), '-f', 'f32le', '-']
 x = np.frombuffer(subprocess.run(cmd, capture_output=True, check=True).stdout, dtype=np.float32)
 
 # spectral-flux onset envelope

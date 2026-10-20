@@ -5,7 +5,7 @@ The P(doom) music video (156.6 s, 9 chapters, ~7,800 lines) was built by Claude 
 ## 1. Lock the song grid first
 
 - **Ask for the song file and an LRC** (or the time each line starts). Never guess lyric timing from a slow "feel": pop songs are usually faster than they sound, and one line is often only 2–3 s.
-- Measure the tempo and beat phase: `python3 scripts/beat_grid.py song.mp3 --from=100 --to=200 --lrc=song.lrc` (needs numpy). It prints the BPM, a beat time, and each lyric line's beat index. Lines usually start a fraction of a beat before a bar line (pickups).
+- Measure the tempo and beat phase: `python "<SKILL_DIR>/scripts/beat_grid.py" song.mp3 --from=100 --to=200 --lrc=song.lrc` (needs numpy). It prints the BPM, a beat time, and each lyric line's beat index. Lines usually start a fraction of a beat before a bar line (pickups).
   - P(doom): 88 BPM, beat 0.682 s. 小镇姑娘: 154 BPM (half-time 77), one line = 8 beats ≈ 3.1 s.
   - For a ballad, set `PROJECT.bpm` to the half-time pulse so idles and bounces don't look frantic.
 - **Cut a clip on a bar line**: start one bar (or two) before the first line you use, end a bar or two after the last, and fade out:
@@ -36,7 +36,7 @@ The P(doom) music video (156.6 s, 9 chapters, ~7,800 lines) was built by Claude 
 
 ## 4. Parallel subagents (optional, for long videos)
 
-P(doom)'s second generation was painted by parallel subagents, one per chapter, all briefed by the same guide. Do this only if the user asks for subagents or the video is long enough to justify it; otherwise build chapters yourself in order.
+P(doom)'s second generation was painted by parallel subagents, one per chapter, all briefed by the same guide. Do this only if subagents are authorized in the current session; otherwise build chapters yourself in order.
 
 1. Write the storyboard, the shared files and at least one finished chapter yourself first, so there is a working reference for style and API.
 2. Write a short `CHAPTER_BRIEF.md` in the project (the orchestrator's brief to subagents). It should contain:
